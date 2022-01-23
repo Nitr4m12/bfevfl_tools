@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from typing import List, Optional
 from sys import argv
+from pathlib import Path
 import json
 
 
@@ -15,9 +16,9 @@ with open(argv[1], "r") as in_file:
     json_read = json.load(in_file)
 
 flow = EventFlow()
-flow.name = "Name"
+flow.name = Path(argv[1]).stem
 flow.flowchart = Flowchart()
-flow.flowchart.name = "Flow"
+flow.flowchart.name = Path(argv[1]).stem
 flowchart = flow.flowchart
 global_stack = []
 # json_read = json_read
@@ -59,7 +60,8 @@ def look_for_actors(json_dict: dict):
             }
             traversed_actors.append(node['data']['actor'])
 
-        elif node['type'] == 'node' and node['data'].get('action') and node['data']['action'] not in traversed_actions:
+    for node in events:
+        if node['type'] == 'node' and node['data'].get('action') and node['data']['action'] not in traversed_actions:
             actors_dict[node['data']['actor']]['actor'].actions.append(StringHolder(node['data']['action']))
             traversed_actions.append(node['data']['action'])
 
@@ -77,19 +79,29 @@ def build_event(node: dict, edges: list, flowchart: Flowchart, targets: List[dic
     temp_edges = []
     temp_flowc = Flowchart()
 
+    if node['data'].get('action'):
+        for act in actors_dict[node['data']['actor']]['actor'].actions:
+            if str(act) == node['data']['action']:
+                action = act
+    
+    if node['data'].get('query'):
+        for que in actors_dict[node['data']['actor']]['actor'].queries:
+            if str(que) == node['data']['query']:
+                query = que
+
     if node['node_type'] == 'action':
         
         event.data = ActionEvent()
         event.data.actor.v = actors_dict[node['data']['actor']]['actor']
 
-        event.data.actor_action.v = StringHolder(node['data'].get('action'))
+        event.data.actor_action.v = action
         event.data.params = params
 
     elif node['node_type'] == 'switch':
         
         event.data = SwitchEvent()
         event.data.actor.v = actors_dict[node['data']['actor']]['actor']
-        event.data.actor_query.v = StringHolder(node['data'].get('query'))
+        event.data.actor_query.v = query
         event.data.params = params
 
         if edges:
