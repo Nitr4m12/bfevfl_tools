@@ -139,8 +139,9 @@ def set_targets(flowchart: Flowchart, events: dict):
                 continue
 
         elif type(event.data) == SwitchEvent:
-            for i in range(len(event.data.cases)):
-                event.data.cases[i].v = events_by_idx[event.data.cases[i]._idx]['event']
+            if len(event.data.cases) != 0:
+                for i in range(len(event.data.cases)):
+                    event.data.cases[i].v = events_by_idx[event.data.cases[i]._idx]['event']
 
         elif type(event.data) == ForkEvent:
             for i in range(len(event.data.forks)):
