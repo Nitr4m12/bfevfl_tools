@@ -4,7 +4,6 @@ from sys import argv
 from pathlib import Path
 import json
 
-
 from evfl import EventFlow, Flowchart, Event, ActionEvent, SwitchEvent, ForkEvent, JoinEvent, SubFlowEvent, Actor, Container
 from evfl.common import ActorIdentifier, StringHolder
 from evfl.entry_point import EntryPoint
@@ -20,10 +19,9 @@ flow.name = Path(argv[1]).stem
 flow.flowchart = Flowchart()
 flow.flowchart.name = Path(argv[1]).stem
 flowchart = flow.flowchart
-global_stack = []
-# json_read = json_read
 
 def look_for_edge(src_node: dict, json_dict: dict):
+    # Look for the edge corresponding to src_node
     events: dict = deepcopy(json_dict)
     edges: list = []
     for node in events:
@@ -32,6 +30,8 @@ def look_for_edge(src_node: dict, json_dict: dict):
     return edges
 
 def look_for_next(edges: list, json_dict: dict):
+    # Look for the node(s) pointed to by the corresponding edge, and compile them
+    # all in a list of targets
     events: dict = deepcopy(json_dict)
     targets = []
     for node in events:
@@ -39,14 +39,8 @@ def look_for_next(edges: list, json_dict: dict):
             targets.append(node)
     return targets
 
-def look_for_join(json_dict: dict):
-    events: dict = deepcopy(json_dict)
-    for node in events:
-        if node['type'] == 'node' and node['node_type'] == 'join' and node not in global_stack:
-            global_stack.append(node)
-            return node
-
 def look_for_actors(json_dict: dict):
+    # Search for individual actors, as well as their corresponding actions and queries
     events: dict = deepcopy(json_dict)
     traversed_actors: List[str] = []
     traversed_actions: List[str] = []
@@ -75,10 +69,9 @@ def build_event(node: dict, edges: list, flowchart: Flowchart, targets: List[dic
 
     params = Container()
     params.data = node['data'].get('params')
-
-    temp_edges = []
-    temp_flowc = Flowchart()
-
+    
+    # Take the corresponding action or query from the actors_dict,
+    # as we need them to be references rather than new variables
     if node['data'].get('action'):
         for act in actors_dict[node['data']['actor']]['actor'].actions:
             if str(act) == node['data']['action']:
@@ -90,7 +83,7 @@ def build_event(node: dict, edges: list, flowchart: Flowchart, targets: List[dic
                 query = que
 
     if node['node_type'] == 'action':
-        
+        # Build an Action Event
         event.data = ActionEvent()
         event.data.actor.v = actors_dict[node['data']['actor']]['actor']
 
@@ -98,13 +91,14 @@ def build_event(node: dict, edges: list, flowchart: Flowchart, targets: List[dic
         event.data.params = params
 
     elif node['node_type'] == 'switch':
-        
+        # Build a Switch Event
         event.data = SwitchEvent()
         event.data.actor.v = actors_dict[node['data']['actor']]['actor']
         event.data.actor_query.v = query
         event.data.params = params
 
         if edges:
+            # Look for the corresponding cases pointed at by the edge
             for edge in edges:
                 if not edge['data'].get('virtual'):
                     event.data.cases[edge['data']['value']] = RequiredIndex(edge['target'])
@@ -112,17 +106,22 @@ def build_event(node: dict, edges: list, flowchart: Flowchart, targets: List[dic
                     event.data.cases[len(edges) - 1] = RequiredIndex(edge['target'])
                     
     elif node['node_type'] == 'fork':
+        # Build a Fork Event
         event.data = ForkEvent()
+        # Store the index to look up the event later
         event.data.join._idx = [target['id'] for target in targets][0]
         if edges:
+            # Store the index to look up the event later
             for edge in edges:
                 req_index = RequiredIndex(edge['target'])
                 event.data.forks.append(req_index)
 
     elif node['node_type'] == 'join':
+        # Build a Join Event
         event.data = JoinEvent()
 
     elif node['node_type'] == 'sub_flow':
+        # Build a SubFlow Event
         event.data = SubFlowEvent()
         event.data.res_flowchart_name = node['data']['res_flowchart_name']
         event.data.entry_point_name = node['data']['entry_point_name']
@@ -131,6 +130,7 @@ def build_event(node: dict, edges: list, flowchart: Flowchart, targets: List[dic
     return event
 
 def set_targets(flowchart: Flowchart, events: dict):
+    # Connect the events to their corresponding target(s)
     for event in flowchart.events:
         if type(event.data) == ActionEvent:
             try:
